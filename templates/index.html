@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaptopFinder - Sistem Rekomendasi Pintar</title>
+    <style>
+        /* Reset & Base Styles */
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        body { background-color: #f4f7f6; color: #333; overflow-x: hidden; }
+
+        /* =========================================
+           LAYER 1: WELCOME SCREEN (HERO SECTION)
+           ========================================= */
+        #layer1 {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+            background: linear-gradient(135deg, #0f2027, #203a43, #2ca1bc);
+            color: white; display: flex; flex-direction: column; justify-content: center;
+            align-items: center; text-align: center; padding: 0 20px; z-index: 100;
+            /* FIX: Pisahkan transform dan opacity ke transisi berbeda agar tidak saling ganggu */
+            transition: transform 1.2s cubic-bezier(0.77, 0, 0.175, 1), opacity 0.8s ease;
+            transform-origin: center center;
+        }
+
+        /*
+         * FIX: Hapus kelas .zoom-through-instantly yang memakai 'display:none'.
+         * Sekarang semua state (maju/mundur) dikendalikan HANYA lewat JavaScript.
+         * Ini menghilangkan bug konflik antara CSS class dan inline style.
+         *
+         * Kelas .zoom-through HANYA untuk animasi maju (masuk ke layer2).
+         * Kelas .fade-in-hero HANYA untuk animasi mundur (kembali dari layer2).
+         */
+        .zoom-through {
+            transform: scale(15) !important;
+            opacity: 0 !important;
+            pointer-events: none;
+        }
+
+        /* FIX: State awal layer1 saat halaman di-load ulang dengan ?submit=true (sudah login/submit).
+         * Langsung tersembunyi tanpa animasi apapun. */
+        .hidden-instantly {
+            display: none !important;
+        }
+
+        .hero-title { font-size: 3.5rem; font-weight: 800; margin-bottom: 15px; letter-spacing: 2px; text-shadow: 2px 2px 10px rgba(0,0,0,0.3); }
+        .hero-subtitle { font-size: 1.2rem; max-width: 600px; margin-bottom: 40px; color: #e2e8f0; line-height: 1.6; }
+        .button-group { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; }
+
+        .btn-start { background-color: #38b2ac; color: white; padding: 15px 40px; border: none; border-radius: 30px; font-size: 1.2rem; font-weight: bold; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(56, 178, 172, 0.4); }
+        .btn-start:hover { background-color: #319795; transform: translateY(-3px); box-shadow: 0 6px 20px rgba(56, 178, 172, 0.6); }
+
+        .btn-disabled { background-color: #4a5568; color: #a0aec0; padding: 15px 40px; border: 2px dashed #718096; border-radius: 30px; font-size: 1.2rem; font-weight: bold; cursor: not-allowed; position: relative; }
+        .btn-disabled::after { content: 'Soon'; position: absolute; top: -15px; right: -10px; background-color: #e53e3e; color: white; font-size: 0.7rem; padding: 4px 8px; border-radius: 10px; transform: rotate(10deg); box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+
+        /* =========================================
+           LAYER 2: MAIN APP SCREEN
+           ========================================= */
+        #layer2 {
+            min-height: 100vh; width: 100%;
+            display: none; /* Default: tersembunyi */
+            opacity: 0;
+            /* FIX: Tambahkan transform-origin agar shrink-away menuju tengah, bukan pojok */
+            transform-origin: center center;
+            transition: transform 0.7s cubic-bezier(0.77, 0, 0.175, 1), opacity 0.6s ease;
+            justify-content: center; padding: 80px 20px;
+        }
+
+        /* FIX: State visible memakai flex, bukan grid atau block */
+        #layer2.visible {
+            display: flex;
+            opacity: 1;
+        }
+
+        /* FIX: Animasi mundur layer2: mengecil KE DALAM layar (bukan ke pojok) */
+        #layer2.shrink-away {
+            transform: scale(0.85);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Tombol Hamburger */
+        .menu-toggle {
+            position: fixed; top: 20px; left: 20px; background: #2d3748;
+            border: none; width: 45px; height: 45px; border-radius: 8px;
+            cursor: pointer; display: none; /* Default tersembunyi, JS yang mengatur */
+            flex-direction: column; justify-content: center; align-items: center; gap: 5px; z-index: 150;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1); transition: all 0.3s;
+        }
+        .menu-toggle:hover { background: #1a202c; transform: scale(1.05); }
+        .menu-toggle span { width: 22px; height: 3px; background: white; border-radius: 2px; }
+
+        /* Off-Canvas Sidebar */
+        .sidebar {
+            width: 280px; background-color: #ffffff; border-right: 1px solid #e2e8f0;
+            padding: 40px 20px; display: flex; flex-direction: column;
+            position: fixed; height: 100vh; left: -280px; top: 0; z-index: 200;
+            box-shadow: 5px 0 25px rgba(0,0,0,0.05);
+            transition: left 0.4s cubic-bezier(0.77, 0, 0.175, 1);
+        }
+        .sidebar.open { left: 0; }
+
+        .sidebar-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+            background: rgba(0,0,0,0.3); z-index: 190; display: none; opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .sidebar-overlay.show { display: block; opacity: 1; }
+
+        .sidebar-logo { font-size: 1.6em; font-weight: 800; color: #2d3748; margin-bottom: 40px; text-align: center; border-bottom: 2px solid #f4f7f6; padding-bottom: 15px; }
+        .nav-link { display: block; padding: 14px 15px; color: #4a5568; text-decoration: none; border-radius: 8px; font-weight: 600; margin-bottom: 12px; transition: all 0.2s; cursor: pointer; }
+        .nav-link:hover { background-color: #f7fafc; color: #38b2ac; transform: translateX(5px); }
+        .nav-link.active { background-color: #e6fffa; color: #319795; border-left: 4px solid #38b2ac; }
+        .nav-link.soon { opacity: 0.5; cursor: not-allowed; position: relative; }
+        .nav-link.soon::after { content: 'Soon'; position: absolute; right: 15px; top: 14px; font-size: 0.7em; background: #e53e3e; color: white; padding: 2px 6px; border-radius: 4px; }
+
+        /* Form & Cards */
+        .main-content { max-width: 1100px; width: 100%; margin: 0 auto; }
+        .section-title { font-size: 2.2rem; color: #2d3748; margin-bottom: 30px; text-align: center; }
+        .search-box { background: #ffffff; padding: 35px; border-radius: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.04); margin-bottom: 5px; border-top: 4px solid #38b2ac; }
+        form { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; align-items: end; }
+        .input-group { display: flex; flex-direction: column; gap: 8px; }
+        label { font-weight: 600; color: #4a5568; font-size: 0.9em; }
+        input, select { padding: 12px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 15px; outline: none; background-color: #f8fafc; transition: all 0.3s; }
+        input:focus, select:focus { border-color: #38b2ac; background-color: #fff; box-shadow: 0 0 0 3px rgba(56, 178, 172, 0.1); }
+
+        .form-actions { display: flex; gap: 12px; }
+        .btn-submit { background-color: #2d3748; color: white; border: none; padding: 13px 25px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; flex-grow: 2; transition: background 0.2s; }
+        .btn-submit:hover { background-color: #1a202c; }
+        .btn-reset { background-color: #e2e8f0; color: #4a5568; border: none; padding: 13px 25px; border-radius: 8px; font-size: 15px; font-weight: bold; cursor: pointer; flex-grow: 1; transition: background 0.2s; }
+        .btn-reset:hover { background-color: #cbd5e1; }
+
+        .grid-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 25px; margin-top: 40px; }
+        .card { background: #ffffff; border-radius: 12px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.03); border: 1px solid #e2e8f0; display: flex; flex-direction: column; justify-content: space-between; position: relative; transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .card::before { content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px; background: linear-gradient(90deg, #38b2ac, #2ca1bc); border-radius: 12px 12px 0 0; }
+        .card:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0,0,0,0.08); }
+        .card-brand { font-size: 0.8em; text-transform: uppercase; color: #718096; font-weight: 800; margin-bottom: 5px; }
+        .card-title { font-size: 1.2em; margin: 0 0 15px 0; color: #1a202c; }
+        .specs-list { list-style: none; padding: 0; margin: 0 0 20px 0; }
+        .specs-list li { font-size: 0.9em; color: #4a5568; margin-bottom: 8px; padding-left: 20px; position: relative; }
+        .specs-list li::before { content: "✓"; color: #38b2ac; font-weight: bold; position: absolute; left: 0; }
+        .card-price { font-size: 1.5em; font-weight: 800; color: #e53e3e; margin: 0; padding-top: 15px; border-top: 1px solid #e2e8f0; }
+        .pesan-gagal { background-color: #fff5f5; color: #c53030; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #feb2b2; font-weight: 600; margin-top: 40px; }
+    
+        /* Tombol Feedback Melayang */
+        .btn-floating {
+            position: fixed; bottom: 30px; right: 30px; background-color: #e53e3e; color: white;
+            border: none; border-radius: 50px; padding: 15px 25px; font-size: 1rem; font-weight: bold;
+            cursor: pointer; box-shadow: 0 4px 15px rgba(229, 62, 62, 0.4); z-index: 999;
+            transition: all 0.3s ease; display: flex; align-items: center; gap: 8px;
+        }
+        .btn-floating:hover { transform: translateY(-3px) scale(1.05); background-color: #c53030; }
+
+        /* Modal Background (Buram) */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh;
+            background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 1000;
+            display: none; justify-content: center; align-items: center; opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Modal Content Box */
+        .modal-content {
+            background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 400px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2); transform: scale(0.9);
+            transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .modal-header { font-size: 1.5rem; color: #2d3748; margin-bottom: 15px; font-weight: bold; }
+        .modal-close { float: right; cursor: pointer; font-size: 1.5rem; color: #a0aec0; border: none; background: none; }
+        .modal-close:hover { color: #4a5568; }
+
+        .feedback-input { width: 100%; padding: 12px; margin-bottom: 15px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem; outline: none; }
+        .feedback-input:focus { border-color: #38b2ac; }
+        textarea.feedback-input { resize: vertical; min-height: 100px; }
+    </style>
+</head>
+<body>
+
+    <!-- LAYER 1: Hero / Landing -->
+    <!-- FIX: Jinja hanya menentukan class 'hidden-instantly', bukan style inline.
+         Tidak ada lagi style block di dalam head yang mencoba memanipulasi classList via CSS. -->
+    <div id="layer1" class="{% if submit %}hidden-instantly{% endif %}">
+        <h1 class="hero-title">LaptopFinder</h1>
+        <p class="hero-subtitle">Sistem rekomendasi berbasis data untuk menemukan laptop atau komponen yang paling pas dengan spesifikasi teknis perangkat Anda.</p>
+        <div class="button-group">
+            <button class="btn-start" onclick="animasiMaju()">Pencarian Laptop</button>
+            <button class="btn-disabled" onclick="alert('Fitur analisis kompatibilitas Motherboard untuk RAM & SSD sedang dalam tahap pengembangan.')">Upgrade RAM / SSD</button>
+        </div>
+    </div>
+
+    <!-- Tombol Hamburger: dirender flex hanya jika halaman sudah di-submit -->
+    <button class="menu-toggle" id="menuToggleBtn"
+        style="{% if submit %}display:flex;{% endif %}"
+        onclick="toggleSidebar(true)">
+        <span></span><span></span><span></span>
+    </button>
+
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar(false)"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-logo">LaptopFinder</div>
+        <nav>
+            <div class="nav-link" onclick="animasiMundur()">🏠 Kembali ke Awal</div>
+            <div class="nav-link active">💻 Cari Laptop</div>
+            <div class="nav-link soon" onclick="alert('Fitur RAM/SSD Upgrade sedang dalam pengembangan.')">⚙️ Upgrade RAM/SSD</div>
+        </nav>
+    </aside>
+
+    <!-- LAYER 2: Main App -->
+    <!-- FIX: Tidak ada lagi inline style opacity/display dari Jinja di sini.
+         Semua dikontrol oleh JS saat halaman load (lihat DOMContentLoaded di bawah). -->
+    <div id="layer2" class="{% if submit %}visible{% endif %}">
+        <div class="main-content">
+            <h2 class="section-title">Konsultasi Pemilihan Laptop</h2>
+
+            <div class="search-box">
+                <form method="POST" action="/" id="filterForm">
+                    <div class="input-group">
+                        <label for="budget_min">Budget Minimal</label>
+                        <input type="text" id="budget_min" name="budget_min"
+                               value="{{ request.form.budget_min if submit else '' }}"
+                               placeholder="Rp 5.000.000" onkeyup="formatRupiah(this)" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="budget_max">Budget Maximal</label>
+                        <input type="text" id="budget_max" name="budget_max"
+                               value="{{ request.form.budget_max if submit else '' }}"
+                               placeholder="Rp 15.000.000" onkeyup="formatRupiah(this)" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="kebutuhan">Kebutuhan Utama</label>
+                        <select id="kebutuhan" name="kebutuhan" required>
+                            <option value="Office / Pelajar (Ringan)" {% if request.form.kebutuhan == 'Office / Pelajar (Ringan)' %}selected{% endif %}>Office & Mobilitas</option>
+                            <option value="Gaming / Creator" {% if request.form.kebutuhan == 'Gaming / Creator' %}selected{% endif %}>Gaming & Rendering</option>
+                            <option value="General / Multimedia (Standar)" {% if request.form.kebutuhan == 'General / Multimedia (Standar)' %}selected{% endif %}>Penggunaan Standar</option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label for="merek">Merek Favorit</label>
+                        <select id="merek" name="merek">
+                            <option value="Semua" {% if request.form.merek == 'Semua' or not submit %}selected{% endif %}>Semua Merek</option>
+                            <option value="Lenovo" {% if request.form.merek == 'Lenovo' %}selected{% endif %}>Lenovo</option>
+                            <option value="MSI" {% if request.form.merek == 'MSI' %}selected{% endif %}>MSI</option>
+                            <option value="ASUS" {% if request.form.merek == 'ASUS' %}selected{% endif %}>ASUS</option>
+                            <option value="HP" {% if request.form.merek == 'HP' %}selected{% endif %}>HP</option>
+                            <option value="Acer" {% if request.form.merek == 'Acer' %}selected{% endif %}>Acer</option>
+                        </select>
+                    </div>
+
+                    <div class="form-actions" style="grid-column: 1 / -1; margin-top: 10px;">
+                        <button type="submit" class="btn-submit">Cari Sekarang</button>
+                        <button type="button" class="btn-reset" onclick="kosongkanForm()">Kosongkan</button>
+                    </div>
+                </form>
+            </div>
+
+            <div id="resultsArea">
+                {% if submit %}
+                    {% if hasil == 'tidak_ditemukan' %}
+                        <div class="pesan-gagal">
+                            Belum ada laptop yang berjodoh dengan rentang harga tersebut. Coba sesuaikan kembali budget Anda.
+                        </div>
+                    {% else %}
+                        <div class="grid-container">
+                            {% for laptop in hasil %}
+                            <div class="card">
+                                <div>
+                                    <div class="card-brand">{{ laptop.brand }}</div>
+                                    <h3 class="card-title">{{ laptop.model }}</h3>
+                                    <ul class="specs-list">
+                                        <li><strong>CPU:</strong> {{ laptop.cpu }}</li>
+                                        <li><strong>GPU:</strong> {{ laptop.gpu }}</li>
+                                        <li><strong>RAM:</strong> {{ laptop.ram_gb | int }} GB</li>
+                                        <li><strong>Layar:</strong> {{ laptop.screen_specs }}</li>
+                                    </ul>
+                                </div>
+                                <div class="card-price">Rp {{ "{:,}".format(laptop.price_idr).replace(',', '.') }}</div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =========================================================
+        // ANIMASI 1: MAJU — Layer 1 zoom masuk, Layer 2 fade in
+        // =========================================================
+        function animasiMaju() {
+            const layer1 = document.getElementById('layer1');
+            const layer2 = document.getElementById('layer2');
+            const toggleBtn = document.getElementById('menuToggleBtn');
+
+            // Trigger animasi zoom layer1 ke dalam layar
+            layer1.classList.add('zoom-through');
+
+            // Setelah 700ms (saat zoom sudah setengah jalan), sembunyikan layer1
+            // dan mulai tampilkan layer2
+            setTimeout(() => {
+                layer1.style.display = 'none';
+
+                // Layer 2: pastikan flex tapi opacity masih 0
+                layer2.style.display = 'flex';
+                layer2.style.opacity = '0';
+                layer2.style.transform = 'scale(1)'; // Reset scale bersih
+
+                toggleBtn.style.display = 'flex';
+
+                // Jeda sedikit agar browser sempat render display:flex sebelum transisi opacity
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        layer2.style.transition = 'opacity 0.6s ease';
+                        layer2.style.opacity = '1';
+                    });
+                });
+            }, 700);
+        }
+
+        // =========================================================
+        // ANIMASI 2: MUNDUR — Layer 2 shrink + fade, Layer 1 fade in bersih
+        // FIX UTAMA: Layer1 tidak lagi di-flash dalam state zoom-through.
+        //            Layer1 disiapkan di belakang layar (opacity 0, scale 1),
+        //            lalu fade in setelah layer2 selesai animasi mundur.
+        // =========================================================
+        function animasiMundur() {
+            const layer1 = document.getElementById('layer1');
+            const layer2 = document.getElementById('layer2');
+            const toggleBtn = document.getElementById('menuToggleBtn');
+
+            // Tutup sidebar terlebih dahulu
+            toggleSidebar(false);
+
+            // -- FASE 1: Siapkan Layer 1 di BELAKANG layar tanpa terlihat --
+            // Paksa keluar dari 'hidden-instantly' jika ada
+            layer1.classList.remove('hidden-instantly');
+            layer1.classList.remove('zoom-through');
+
+            // Posisikan layer1 di belakang (z-index di bawah layer2) dan transparan
+            layer1.style.display = 'flex';
+            layer1.style.opacity = '0';
+            layer1.style.transform = 'scale(1)'; // Skala normal, BUKAN zoom-through
+            layer1.style.transition = 'none'; // Matikan transisi sementara agar tidak muncul tiba-tiba
+
+            // -- FASE 2: Animasi Layer 2 mundur (shrink + fade) --
+            // Beri jeda 1 frame agar layer1 sudah ter-render di posisinya
+            requestAnimationFrame(() => {
+                // Aktifkan kembali transisi layer1 untuk nanti
+                layer1.style.transition = 'opacity 0.7s ease 0.4s'; // delay 0.4s = tunggu layer2 mulai mundur
+
+                // Layer 2 mengecil dan menghilang
+                layer2.style.transition = 'transform 0.6s cubic-bezier(0.77, 0, 0.175, 1), opacity 0.5s ease';
+                layer2.style.transform = 'scale(0.85)';
+                layer2.style.opacity = '0';
+                layer2.style.pointerEvents = 'none';
+                toggleBtn.style.display = 'none';
+
+                // Layer 1 fade in bersamaan (dengan delay 0.4s dari CSS)
+                layer1.style.opacity = '1';
+            });
+
+            // -- FASE 3: Bersihkan state layer2 setelah animasi selesai --
+            setTimeout(() => {
+                layer2.style.display = 'none';
+                layer2.style.transform = 'scale(1)'; // Reset untuk pemakaian berikutnya
+                layer2.style.opacity = '0';
+                layer2.style.transition = '';
+                layer2.style.pointerEvents = '';
+                layer2.classList.remove('visible');
+
+                // Bersihkan inline style layer1 (serahkan ke CSS)
+                layer1.style.transition = '';
+
+                // Redirect ke '/' untuk bersihkan state backend (POST → GET)
+                window.location.href = '/';
+            }, 1100);
+        }
+
+        // =========================================================
+        // SIDEBAR: Buka / Tutup
+        // =========================================================
+        function toggleSidebar(open) {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebarOverlay');
+            if (open) {
+                sidebar.classList.add('open');
+                overlay.classList.add('show');
+            } else {
+                sidebar.classList.remove('open');
+                overlay.classList.remove('show');
+            }
+        }
+
+        // =========================================================
+        // FORM: Kosongkan hasil dan reset input
+        // =========================================================
+        function kosongkanForm() {
+            document.getElementById('filterForm').reset();
+            const resultsArea = document.getElementById('resultsArea');
+            if (resultsArea) {
+                resultsArea.style.transition = 'opacity 0.4s ease';
+                resultsArea.style.opacity = '0';
+                setTimeout(() => {
+                    resultsArea.innerHTML = '';
+                    resultsArea.style.opacity = '1';
+                }, 400);
+            }
+        }
+
+        // =========================================================
+        // FORMAT RUPIAH: Titik ribuan otomatis
+        // =========================================================
+        function formatRupiah(angka) {
+            var number_string = angka.value.replace(/[^,\d]/g, '').toString(),
+                split   = number_string.split(','),
+                sisa    = split[0].length % 3,
+                rupiah  = split[0].substr(0, sisa),
+                ribuan  = split[0].substr(sisa).match(/\d{3}/gi);
+            if (ribuan) {
+                separator = sisa ? '.' : '';
+                rupiah += separator + ribuan.join('.');
+            }
+            angka.value = rupiah;
+        }
+
+        function bukaModal() {
+            const modal = document.getElementById('feedbackModal');
+            const content = document.getElementById('feedbackContent');
+            modal.style.display = 'flex';
+            // Beri jeda sangat kecil agar display:flex ter-render sebelum opacity diubah
+            setTimeout(() => {
+                modal.style.opacity = '1';
+                content.style.transform = 'scale(1)';
+            }, 10);
+        }
+
+        function tutupModal() {
+            const modal = document.getElementById('feedbackModal');
+            const content = document.getElementById('feedbackContent');
+            modal.style.opacity = '0';
+            content.style.transform = 'scale(0.9)';
+            setTimeout(() => {
+                modal.style.display = 'none';
+            }, 300);
+        }
+    </script>
+    <button class="btn-floating" onclick="bukaModal()">
+        💬 Beri Masukan
+    </button>
+
+    <div class="modal-overlay" id="feedbackModal">
+        <div class="modal-content" id="feedbackContent">
+            <button class="modal-close" onclick="tutupModal()">×</button>
+            <div class="modal-header">Punya Masukan?</div>
+            <p style="margin-bottom: 20px; color: #718096; font-size: 0.95rem;">Bantu kami menjadi lebih baik dengan umpan balik Anda.</p>
+            
+            <form method="POST" action="/submit-feedback">
+                <input type="text" name="nama_user" class="feedback-input" placeholder="Nama Anda (Opsional)">
+                <textarea name="pesan_feedback" class="feedback-input" placeholder="Ketik saran atau temuan error di sini..." required></textarea>
+                <button type="submit" class="btn-submit" style="width: 100%;">Kirim Feedback</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
+<script>
