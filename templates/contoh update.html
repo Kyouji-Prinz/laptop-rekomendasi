@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LaptopFinder - Sistem Rekomendasi Vibran</title>
+    <style>
+        /* =========================================
+           RESET & BASE STYLES - CYBERNETIC THEME
+           ========================================= */
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        
+        /* Smooth Scrolling untuk transisi halaman */
+        html { scroll-behavior: smooth; }
+        
+        /* Dasar Latar Belakang Gelap */
+        body { background-color: #121212; color: #E0E0E0; overflow-x: hidden; }
+
+        /* =========================================
+           LAYER 1: WELCOME SCREEN (MODERN DARK)
+           ========================================= */
+        #layer1 {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            /* Perubahan: Gradient pekat dari Hitam ke Hitam Arang */
+            background: linear-gradient(135deg, #000000 0%, #1a1a1a 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 0 20px;
+            z-index: 100;
+            /* Transisi sinkron untuk efek menembus */
+            transition: transform 1.2s cubic-bezier(0.77, 0, 0.175, 1), opacity 0.6s ease-out;
+        }
+
+        /* Class yang akan ditambahkan oleh JavaScript saat tombol diklik */
+        .zoom-through {
+            transform: scale(15);
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 15px;
+            letter-spacing: 2px;
+            /* Judul Putih Bersih */
+            text-shadow: 2px 2px 10px rgba(255,255,255,0.1);
+        }
+
+        .hero-subtitle {
+            font-size: 1.2rem;
+            max-width: 600px;
+            margin-bottom: 40px;
+            /* Teks Abu-abu Terang */
+            color: #E0E0E0;
+            line-height: 1.6;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        /* Tombol 1: Aktif - PERUBAHAN TEMA KUNING */
+        .btn-start {
+            background-color: #FFEA00; /* Kuning Neon */
+            color: #000; /* Teks Hitam Pekat agar kontras */
+            padding: 15px 40px;
+            border: none;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(255, 234, 0, 0.3); /* Bayangan Kuning halus */
+        }
+
+        .btn-start:hover {
+            background-color: #FFD600; /* Kuning lebih pekat */
+            transform: translateY(-3px);
+            box-shadow: 0 6px 25px rgba(255, 234, 0, 0.5); /* Bayangan Kuning lebih kuat */
+        }
+
+        /* Tombol 2: Coming Soon (Nonaktif) */
+        .btn-disabled {
+            background-color: #2D2D2D;
+            color: #718096;
+            padding: 15px 40px;
+            border: 2px dashed #444;
+            border-radius: 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: not-allowed;
+            position: relative;
+        }
+
+        /* Label Coming Soon melayang */
+        .btn-disabled::after {
+            content: 'Coming Soon';
+            position: absolute;
+            top: -15px;
+            right: -10px;
+            /* Merah tetap dipakai sebagai tanda peringatan */
+            background-color: #e53e3e;
+            color: white;
+            font-size: 0.7rem;
+            padding: 4px 8px;
+            border-radius: 10px;
+            transform: rotate(10deg);
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        /* =========================================
+           LAYER 2: MAIN APP SECTION (DARK UI)
+           ========================================= */
+        .app-container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 80px 20px 100px 20px;
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.2rem;
+            /* Perubahan: Teks judul Putih Bersih */
+            color: #FFFFFF;
+            margin-bottom: 40px;
+        }
+
+        /* Form Kuesioner bergaya Glass/Modern - PERUBAHAN TEMA HITAM */
+        .search-box {
+            background-color: #1E1E1E; /* Hitam Arang sedikit terang untuk kedalaman */
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 60px;
+            /* Bingkai atas menggunakan Aksen Kuning */
+            border-top: 4px solid #FFEA00;
+        }
+
+        form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 25px;
+            align-items: end;
+        }
+
+        .input-group { display: flex; flex-direction: column; gap: 8px; }
+        
+        label { 
+            font-weight: 600; 
+            /* Label Putih agar kontras */
+            color: #FFFFFF; 
+            font-size: 0.95em; 
+        }
+        
+        input, select {
+            padding: 14px;
+            /* Bingkai input abu-abu pekat */
+            border: 2px solid #333;
+            border-radius: 8px;
+            font-size: 15px;
+            outline: none;
+            transition: border-color 0.3s;
+            /* Latar input gelap */
+            background-color: #2D2D2D;
+            color: #FFFFFF; /* Teks dalam input Putih */
+        }
+        
+        /* Fokus input berubah jadi Kuning */
+        input:focus, select:focus { border-color: #FFEA00; background-color: #333; }
+        
+        /* Tombol Cari: Kuning Neon juga */
+        .btn-submit {
+            background-color: #FFEA00;
+            color: #000;
+            border: none;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-submit:hover { background-color: #FFD600; transform: translateY(-2px); box-shadow: 0 4px 15px rgba(255, 234, 0, 0.3); }
+
+        /* =========================================
+           PRODUCT CARDS (CYBER CATALOG STYLE)
+           ========================================= */
+        .grid-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 30px;
+        }
+        
+        .card {
+            background-color: #1E1E1E; /* Hitam Arang pekat */
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            transition: all 0.3s ease;
+            /* Bingkai kartu lebih pekat */
+            border: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* Bingkai dinamis Kuning-Putih di atas kartu */
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            /* Perubahan Gradient: Kuning Neon ke Putih Terang */
+            background: linear-gradient(90deg, #FFEA00, #FFFFFF);
+        }
+        
+        .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 50px rgba(255, 234, 0, 0.15); /* Bayangan Kuning halus saat hover */
+            border-color: #444; /* Sedikit terangkat */
+        }
+        
+        .card-brand {
+            font-size: 0.85em;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            /* Perubahan: Merek Putih Bersih */
+            color: #FFFFFF;
+            font-weight: 800;
+            margin-bottom: 5px;
+        }
+        
+        .card-title { 
+            font-size: 1.4em; 
+            margin: 0 0 20px 0; 
+            /* Perubahan: Judul Teks Putih Terang */
+            color: #E0E0E0; 
+            line-height: 1.3; 
+        }
+        
+        .specs-list { list-style: none; padding: 0; margin: 0 0 25px 0; flex-grow: 1; }
+        .specs-list li {
+            font-size: 0.95em;
+            color: #A0A0A0; /* Abu-abu sedang untuk spesifikasi */
+            margin-bottom: 10px;
+            padding-left: 24px;
+            position: relative;
+        }
+        
+        /* Bullet Point berubah jadi tanda centang KUNING */
+        .specs-list li::before {
+            content: "✓";
+            color: #FFEA00;
+            font-weight: bold;
+            position: absolute;
+            left: 0;
+        }
+        
+        .card-price {
+            font-size: 1.8em;
+            font-weight: 800;
+            /* PERUBAHAN: Harga Pop dengan warna Kuning Neon */
+            color: #FFEA00;
+            margin: 0;
+            padding-top: 20px;
+            border-top: 1px solid #333; /* Pemisah abu-abu pekat */
+            display: flex;
+            align-items: center;
+        }
+
+        .card-price span { font-size: 0.5em; color: #718096; font-weight: normal; margin-right: 5px; }
+        
+        .pesan-gagal { background-color: #fff5f5; color: #c53030; padding: 20px; border-radius: 8px; text-align: center; border: 1px solid #feb2b2; font-weight: 600; font-size: 1.1em; }
+    </style>
+</head>
+<body>
+
+    <section class="hero-section" id="layer1">
+        <h1 class="hero-title">LaptopFinder</h1>
+        <p class="hero-subtitle">Sistem rekomendasi berbasis data untuk menemukan laptop atau komponen yang paling pas dengan spesifikasi teknis perangkat Anda.</p>
+        <div class="button-group">
+            <button class="btn-start" onclick="mulaiAnimasi()">Pencarian Laptop</button>
+            <button class="btn-disabled" onclick="alert('Fitur analisis kompatibilitas Motherboard untuk RAM & SSD sedang dalam tahap pengembangan.')">Upgrade RAM / SSD</button>
+        </div>
+    </section>
+
+    <section id="konsultasi" class="app-container">
+        <h2 class="section-title">Filter Spesifikasi Anda</h2>
+        
+        <div class="search-box">
+            <form method="POST" action="/#konsultasi">
+                <div class="input-group">
+                    <label for="budget_min">Budget Minimal</label>
+                    <input type="text" id="budget_min" name="budget_min" placeholder="Rp 5.000.000" onkeyup="formatRupiah(this)" required>
+                </div>
+                <div class="input-group">
+                    <label for="budget_max">Budget Maksimal</label>
+                    <input type="text" id="budget_max" name="budget_max" placeholder="Rp 15.000.000" onkeyup="formatRupiah(this)" required>
+                </div>
+                <div class="input-group">
+                    <label for="kebutuhan">Kebutuhan Utama</label>
+                    <select id="kebutuhan" name="kebutuhan" required>
+                        <option value="Office / Pelajar (Ringan)">Office & Mobilitas</option>
+                        <option value="Gaming / Creator">Gaming & Rendering</option>
+                        <option value="General / Multimedia (Standar)">Penggunaan Standar</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label for="merek">Merek Favorit</label>
+                    <select id="merek" name="merek">
+                        <option value="Semua">Semua Merek</option>
+                        <option value="Lenovo">Lenovo</option>
+                        <option value="MSI">MSI</option>
+                        <option value="ASUS">ASUS</option>
+                        <option value="HP">HP</option>
+                        <option value="Acer">Acer</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-submit">Cari Sekarang</button>
+            </form>
+        </div>
+
+        {% if submit %}
+            <h2 class="section-title" style="text-align: left; font-size: 1.8rem; margin-top: 40px;">Hasil Terbaik Untuk Anda</h2>
+            
+            {% if hasil == 'tidak_ditemukan' %}
+                <div class="pesan-gagal">
+                    Belum ada laptop yang berjodoh dengan rentang harga tersebut. Coba sesuaikan kembali budget Anda.
+                </div>
+            {% else %}
+                <div class="grid-container">
+                    {% for laptop in hasil %}
+                    <div class="card">
+                        <div>
+                            <div class="card-brand">{{ laptop.brand }}</div>
+                            <h3 class="card-title">{{ laptop.model }}</h3>
+                            <ul class="specs-list">
+                                <li><strong>Processor:</strong> {{ laptop.cpu }}</li>
+                                <li><strong>Graphics:</strong> {{ laptop.gpu }}</li>
+                                <li><strong>RAM:</strong> {{ laptop.ram_gb | int }} GB</li>
+                                <li><strong>Layar:</strong> {{ laptop.screen_specs }}</li>
+                            </ul>
+                        </div>
+                        <div class="card-price"><span>Rp</span>{{ "{:,}".format(laptop.price_idr).replace(',', '.') }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endif %}
+    </section>
+
+    <script>
+        // Animasi Tembus (Zoom Through)
+        function mulaiAnimasi() {
+            const layer1 = document.getElementById('layer1');
+            const layer2 = document.getElementById('konsultasi');
+            
+            // Tambahkan efek zoom dan hilang di Layer 1
+            layer1.classList.add('zoom-through');
+            
+            // Berikan jeda transisi sedikit lebih cepat
+            setTimeout(() => {
+                layer1.style.display = 'none'; // Buang dari memori tampilan
+            }, 600); // 600ms mengikuti durasi opacity CSS
+        }
+
+        // Format Input Rupiah otomatis
+        function formatRupiah(angka) {
+            var number_string = angka.value.replace(/[^,\d]/g, '').toString(),
+                split = number_string.split(','),
+                sisa  = split[0].length % 3,
+                rupiah  = split[0].substr(0, sisa),
+                ribuan  = split[0].substr(sisa).match(/\d{3}/gi);
+            if(ribuan){
+                separator = sisa ? '.' : '';
+                rupiah += separator + ribuan.join('.');
+            }
+            angka.value = rupiah;
+        }
+    </script>
+</body>
+</html>
